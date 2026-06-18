@@ -1,0 +1,13 @@
+[project]
+name = "ssh-proxy"
+version = "1.0.0"
+description = "SSH OTP Local Proxy — authenticate OTP once, then connect freely without repeated prompts."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncssh>=2.23.1",
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+ssh-proxy = "ssh_proxy:main"

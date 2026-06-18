@@ -1,0 +1,90 @@
+# =============================================================
+# SSH Config Example — for use with ssh-proxy
+# =============================================================
+# Copy the sections you need into your ~/.ssh/config
+# Then run:
+#   uv run ssh_proxy.py nano4 -l 2222   (for nano4)
+#   uv run ssh_proxy.py nano5 -l 2223   (for nano5)
+# =============================================================
+
+
+# -------------------------------------------------------------
+# [1] nano4 — Direct connection (requires OTP each time)
+# -------------------------------------------------------------
+Host nano4
+  HostName nano4.nchc.org.tw
+  User YOUR_USERNAME
+
+  # Disable public key auth so OTP prompt appears immediately
+  PubkeyAuthentication no
+  IdentitiesOnly yes
+
+  # Enable keyboard-interactive for OTP / MFA
+  KbdInteractiveAuthentication yes
+  PreferredAuthentications keyboard-interactive,password
+
+  # Avoid QoS / MAC issues on Windows or campus networks
+  IPQoS none
+  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
+
+  # Keep-alive to prevent dropped connections
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+
+# -------------------------------------------------------------
+# [2] nano5 — Direct connection (requires OTP each time)
+# -------------------------------------------------------------
+Host nano5
+  HostName nano5.nchc.org.tw
+  User YOUR_USERNAME
+
+  PubkeyAuthentication no
+  IdentitiesOnly yes
+  KbdInteractiveAuthentication yes
+  PreferredAuthentications keyboard-interactive,password
+
+  IPQoS none
+  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+
+# -------------------------------------------------------------
+# [3] nano4-proxy — Connect via ssh-proxy (NO OTP needed)
+#     Prerequisites: run `uv run ssh_proxy.py nano4 -l 2222`
+# -------------------------------------------------------------
+Host nano4-proxy
+  HostName localhost
+  Port 2222
+  User YOUR_USERNAME
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+
+# -------------------------------------------------------------
+# [4] nano5-proxy — Connect via ssh-proxy (NO OTP needed)
+#     Prerequisites: run `uv run ssh_proxy.py nano5 -l 2223`
+# -------------------------------------------------------------
+Host nano5-proxy
+  HostName localhost
+  Port 2223
+  User YOUR_USERNAME
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+
+# -------------------------------------------------------------
+# [5] (Optional) ProxyJump through nano4-proxy to compute nodes
+#     Example: ssh 25a-mpn02
+# -------------------------------------------------------------
+Host 25a-*
+  User YOUR_USERNAME
+  ProxyJump nano4-proxy
+  IPQoS none
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
