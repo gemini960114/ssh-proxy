@@ -6,6 +6,24 @@ Authenticate with OTP/2FA **once**, then connect as many times as you want — n
 
 ---
 
+## ⚡ Quick Start
+
+```bash
+# Step 1 — Start the proxy (enter OTP only once)
+uv run ssh_proxy.py nano4          # nano4, local port 2222
+uv run ssh_proxy.py nano5 -l 2223  # nano5, local port 2223
+
+# Step 2 — Connect freely, no OTP needed
+ssh -p 2222 localhost   # → nano4.nchc.org.tw
+ssh -p 2223 localhost   # → nano5.nchc.org.tw
+
+# Or with VS Code Remote-SSH — just pick the proxy host!
+```
+
+> 💡 The proxy keeps the authenticated tunnel alive. Press `Ctrl+C` to stop it.
+
+---
+
 ## How It Works
 
 ```
