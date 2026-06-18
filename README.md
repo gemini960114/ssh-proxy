@@ -35,7 +35,7 @@ Your SSH Client (VS Code / terminal)
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/ssh-proxy.git
+git clone https://github.com/gemini960114/ssh-proxy.git
 cd ssh-proxy
 
 # Install dependencies with uv
@@ -54,6 +54,9 @@ uv run ssh_proxy.py nano5.nchc.org.tw -l 2223
 
 # Or use an alias defined in ~/.ssh/config
 uv run ssh_proxy.py nano5 -l 2223
+
+# Connect to nano4 on default port 2222
+uv run ssh_proxy.py nano4
 ```
 
 ### Options
@@ -79,6 +82,14 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2223 localhos
 ### Optional: Add to ~/.ssh/config for short alias
 
 ```
+# ~/.ssh/config
+Host nano4-proxy
+  HostName localhost
+  Port 2222
+  User YOUR_USERNAME
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+
 Host nano5-proxy
   HostName localhost
   Port 2223
@@ -86,6 +97,8 @@ Host nano5-proxy
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
 ```
+
+> See [`ssh_config.example`](ssh_config.example) for a full reference config.
 
 Then simply:
 ```bash
