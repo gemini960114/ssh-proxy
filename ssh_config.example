@@ -53,6 +53,7 @@ Host nano5
 # -------------------------------------------------------------
 # [3] nano4-proxy — Connect via ssh-proxy (NO OTP needed)
 #     Prerequisites: run `uv run ssh_proxy.py nano4 -l 2222`
+#     Use this host in Antigravity / VS Code Remote-SSH.
 # -------------------------------------------------------------
 Host nano4-proxy
   HostName localhost
@@ -60,6 +61,8 @@ Host nano4-proxy
   User YOUR_USERNAME
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  IPQoS none
   ServerAliveInterval 30
   ServerAliveCountMax 3
 
@@ -67,6 +70,7 @@ Host nano4-proxy
 # -------------------------------------------------------------
 # [4] nano5-proxy — Connect via ssh-proxy (NO OTP needed)
 #     Prerequisites: run `uv run ssh_proxy.py nano5 -l 2223`
+#     Use this host in Antigravity / VS Code Remote-SSH.
 # -------------------------------------------------------------
 Host nano5-proxy
   HostName localhost
@@ -74,6 +78,8 @@ Host nano5-proxy
   User YOUR_USERNAME
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  IPQoS none
   ServerAliveInterval 30
   ServerAliveCountMax 3
 
@@ -81,6 +87,7 @@ Host nano5-proxy
 # -------------------------------------------------------------
 # [5] (Optional) ProxyJump through nano4-proxy to compute nodes
 #     Example: ssh 25a-mpn02
+#     This avoids another OTP prompt by jumping through the local proxy.
 # -------------------------------------------------------------
 Host 25a-*
   User YOUR_USERNAME

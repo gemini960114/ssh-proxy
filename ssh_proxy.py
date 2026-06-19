@@ -42,6 +42,9 @@ class OTPSSHClient(asyncssh.SSHClient):
 class NoAuthServer(asyncssh.SSHServer):
     """接受任何本地連線，無需密碼或金鑰"""
 
+    def __init__(self, remote_conn: asyncssh.SSHClientConnection):
+        self._remote_conn = remote_conn
+
     def begin_auth(self, username):
         # 回傳 False = 直接允許，跳過所有驗證
         return False
@@ -52,11 +55,19 @@ class NoAuthServer(asyncssh.SSHServer):
     def public_key_auth_supported(self):
         return False
 
+    def connection_requested(self, dest_host, dest_port, orig_host, orig_port):
+        """把 -L/-D direct-tcpip forwarding 轉送到已驗證的遠端 SSH 連線"""
+        CONSOLE.print(
+            f"[dim cyan]→ tcp forward: "
+            f"{orig_host}:{orig_port} → {dest_host}:{dest_port}[/dim cyan]"
+        )
+        return self._remote_conn
+
 
 # ──────────────────────────────────────────────────
 # Step 3: 每個 session 的處理函式
 # ──────────────────────────────────────────────────
-async def copy_stream(src, dst, label=""):
+async def copy_stream(src, dst, label="", write_eof=True):
     """把 src 的資料逐筆複製到 dst"""
     try:
         while True:
@@ -64,15 +75,23 @@ async def copy_stream(src, dst, label=""):
             if not data:
                 break
             dst.write(data)
+            drain = getattr(dst, "drain", None)
+            if drain:
+                await drain()
     except asyncssh.BreakReceived:
+        pass
+    except (BrokenPipeError, asyncssh.ChannelOpenError):
+        # The opposite side may legitimately close first, for example when a
+        # remote command exits before consuming all client stdin.
         pass
     except Exception as e:
         sys.stderr.write(f"[copy {label}] {type(e).__name__}: {e}\n")
     finally:
-        try:
-            dst.write_eof()
-        except Exception:
-            pass
+        if write_eof:
+            try:
+                dst.write_eof()
+            except Exception:
+                pass
 
 
 async def handle_session(remote_conn: asyncssh.SSHClientConnection,
@@ -106,27 +125,34 @@ async def handle_session(remote_conn: asyncssh.SSHClientConnection,
         )
 
         async with remote_conn.create_process(encoding=None, **kwargs) as remote_proc:
-            # 雙向橋接
-            done, pending = await asyncio.wait(
-                [
-                    asyncio.create_task(
-                        copy_stream(process.stdin, remote_proc.stdin, "local→remote")
-                    ),
-                    asyncio.create_task(
-                        copy_stream(remote_proc.stdout, process.stdout, "remote→local")
-                    ),
-                ],
-                return_when=asyncio.FIRST_COMPLETED
+            stdin_task = asyncio.create_task(
+                copy_stream(process.stdin, remote_proc.stdin, "local→remote stdin")
             )
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+            stdout_task = asyncio.create_task(
+                copy_stream(
+                    remote_proc.stdout, process.stdout,
+                    "remote→local stdout", write_eof=False
+                )
+            )
+            stderr_task = asyncio.create_task(
+                copy_stream(
+                    remote_proc.stderr, process.stderr,
+                    "remote→local stderr", write_eof=False
+                )
+            )
 
-            rc = remote_proc.exit_status
-            process.exit(rc if rc is not None else 0)
+            await remote_proc.wait()
+
+            # stdout/stderr should naturally hit EOF after the remote process exits.
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+
+            # If the remote command exited before consuming all stdin, stop the
+            # local→remote copy only after the remote lifecycle is complete.
+            if not stdin_task.done():
+                stdin_task.cancel()
+            await asyncio.gather(stdin_task, return_exceptions=True)
+
+            process.exit(remote_proc.exit_status or 0)
 
     except Exception as e:
         sys.stderr.write(f"[PROXY ERROR] {type(e).__name__}: {e}\n")
@@ -214,7 +240,7 @@ async def start_proxy(host: str, remote_port: int, local_port: int):
         await handle_session(remote_conn, process)
 
     server = await asyncssh.create_server(
-        NoAuthServer,
+        lambda: NoAuthServer(remote_conn),
         '127.0.0.1', local_port,
         server_host_keys=[server_key],
         process_factory=session_handler,
@@ -246,7 +272,7 @@ async def start_proxy(host: str, remote_port: int, local_port: int):
         CONSOLE.print("[yellow]Proxy stopped.[/yellow]")
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="SSH OTP Local Proxy")
@@ -262,3 +288,7 @@ if __name__ == "__main__":
         asyncio.run(start_proxy(args.host, args.port, args.local_port))
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == "__main__":
+    main()

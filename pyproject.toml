@@ -1,7 +1,11 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "ssh-proxy"
-version = "1.0.0"
-description = "SSH OTP Local Proxy — authenticate OTP once, then connect freely without repeated prompts."
+version = "1.1.0"
+description = "SSH OTP Local Proxy: authenticate OTP once, then connect freely without repeated prompts."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -11,3 +15,6 @@ dependencies = [
 
 [project.scripts]
 ssh-proxy = "ssh_proxy:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["ssh_proxy.py"]
