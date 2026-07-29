@@ -51,13 +51,11 @@ Host nano4
   User YOUR_USERNAME
 
   PubkeyAuthentication no
-  IdentitiesOnly yes
 
   KbdInteractiveAuthentication yes
   PreferredAuthentications keyboard-interactive,password
 
   IPQoS none
-  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
 
   ServerAliveInterval 30
   ServerAliveCountMax 3
@@ -71,13 +69,11 @@ Host nano4
   User c00xxxxx
 
   PubkeyAuthentication no
-  IdentitiesOnly yes
 
   KbdInteractiveAuthentication yes
   PreferredAuthentications keyboard-interactive,password
 
   IPQoS none
-  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
 
   ServerAliveInterval 30
   ServerAliveCountMax 3
@@ -93,7 +89,9 @@ Run:
 ssh nano4
 ```
 
-You should see the remote login flow. Complete the password and OTP / MFA prompts.
+On the first connection, OpenSSH displays the remote host's SHA-256 fingerprint. Verify it with the computing-host administrator or another trusted source before accepting it. The saved host key protects later connections from an unexpected or impersonated server.
+
+You should then see the remote login flow. Complete the password and OTP / MFA prompts.
 
 If login succeeds, you are now inside the remote host.
 

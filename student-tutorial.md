@@ -79,22 +79,23 @@ Host nano4
   HostName nano4.nchc.org.tw
   User YOUR_USERNAME
   PubkeyAuthentication no
-  IdentitiesOnly yes
   KbdInteractiveAuthentication yes
   PreferredAuthentications keyboard-interactive,password
   IPQoS none
-  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
   ServerAliveInterval 30
   ServerAliveCountMax 3
 
 Host nano4-proxy
-  HostName localhost
+  HostName 127.0.0.1
   Port 2222
   User YOUR_USERNAME
+
+  # The local proxy creates a temporary host key on every start
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
   LogLevel ERROR
-  IPQoS none
+
+  # Detect when the local proxy has stopped responding
   ServerAliveInterval 30
   ServerAliveCountMax 3
 ```
@@ -103,7 +104,10 @@ Important:
 
 - `nano4` is the real remote host and still requires OTP.
 - `nano4-proxy` is the local proxy host. Use this in Antigravity or VS Code Remote-SSH.
+- The proxy listens on IPv4 loopback, so use `HostName 127.0.0.1` instead of `localhost`.
 - The proxy port in SSH config must match the port used when starting `ssh-proxy`. The example uses port `2222`.
+- `StrictHostKeyChecking no` and `UserKnownHostsFile /dev/null` apply only to the temporary loopback proxy key. Never add them to the real `nano4` host.
+- The local proxy has no password and is intended for a trusted, single-user computer.
 
 ## Step 5: Start ssh-proxy
 
@@ -114,13 +118,23 @@ cd $env:USERPROFILE\ssh-proxy
 uv run ssh-proxy nano4
 ```
 
-Complete the login prompts:
+On the first connection, the proxy displays the remote SSH host-key algorithm and SHA-256 fingerprint before it asks for a password or OTP.
+
+1. Verify the fingerprint with the computing-host administrator or another trusted source.
+2. Type the full word `yes` to save it in `~/.ssh/known_hosts`.
+3. Then complete the normal login prompts.
+
+Later connections verify the saved key automatically. If the proxy reports `REMOTE HOST IDENTIFICATION HAS CHANGED`, stop and ask the server administrator to confirm the new fingerprint. Do not delete the old entry merely to bypass the warning.
+
+Complete the authentication prompts:
 
 1. Choose the OTP method.
 2. Enter your password if prompted.
 3. Approve the OTP / PUSH / MFA challenge.
 
 After login succeeds, keep this PowerShell window open. It is running the local SSH proxy.
+
+By default, the proxy stops after 8 hours, after 60 minutes with no local SSH clients, or immediately when the remote SSH connection closes. An active terminal or Remote-SSH connection prevents the idle timeout.
 
 ## Step 6: Test the Proxy
 
@@ -171,7 +185,7 @@ Do not choose `nano4` unless you want to connect directly and repeat OTP.
 When Antigravity / VS Code connects successfully, the proxy window may show logs like:
 
 ```text
--> tcp forward: 127.0.0.1:xxxxx -> 127.0.0.1:yyyyy
+-> tcp forward: client=127.0.0.1:xxxxx 127.0.0.1:xxxxx -> 127.0.0.1:yyyyy
 ```
 
 This is normal. Remote-SSH uses SSH port forwarding to communicate with the remote server.
@@ -205,6 +219,18 @@ uv run ssh-proxy nano4
 ```
 
 Then close the stale Remote-SSH window and connect again to `nano4-proxy`.
+
+### `REMOTE HOST IDENTIFICATION HAS CHANGED`
+
+The remote SSH host key no longer matches the key saved on this computer. The proxy stops before sending your password or OTP. Ask the computing-host administrator to verify the new SHA-256 fingerprint before changing `~/.ssh/known_hosts`.
+
+### The proxy stops after 8 hours or 60 idle minutes
+
+Restart the proxy and complete OTP again, or choose different limits:
+
+```powershell
+uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 2h
+```
 
 ## Teaching Summary
 

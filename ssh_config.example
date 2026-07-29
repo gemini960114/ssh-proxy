@@ -15,17 +15,13 @@ Host nano4
   HostName nano4.nchc.org.tw
   User YOUR_USERNAME
 
-  # Disable public key auth so OTP prompt appears immediately
+  # Go directly to the OTP / MFA authentication flow
   PubkeyAuthentication no
-  IdentitiesOnly yes
-
-  # Enable keyboard-interactive for OTP / MFA
   KbdInteractiveAuthentication yes
   PreferredAuthentications keyboard-interactive,password
 
-  # Avoid QoS / MAC issues on Windows or campus networks
+  # Useful on networks which have IP QoS compatibility issues
   IPQoS none
-  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
 
   # Keep-alive to prevent dropped connections
   ServerAliveInterval 30
@@ -40,12 +36,10 @@ Host nano5
   User YOUR_USERNAME
 
   PubkeyAuthentication no
-  IdentitiesOnly yes
   KbdInteractiveAuthentication yes
   PreferredAuthentications keyboard-interactive,password
 
   IPQoS none
-  MACs hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-256
   ServerAliveInterval 30
   ServerAliveCountMax 3
 
@@ -54,15 +48,21 @@ Host nano5
 # [3] nano4-proxy — Connect via ssh-proxy (NO OTP needed)
 #     Prerequisites: run `uv run ssh_proxy.py nano4 -l 2222`
 #     Use this host in Antigravity / VS Code Remote-SSH.
+#     The local proxy uses a new temporary host key on each run, so host-key
+#     checking is disabled ONLY for this loopback alias. Never copy these
+#     two settings to nano4, nano5, or another remote host.
 # -------------------------------------------------------------
 Host nano4-proxy
-  HostName localhost
+  HostName 127.0.0.1
   Port 2222
   User YOUR_USERNAME
+
+  # Temporary local host key: keep these settings scoped to this proxy alias
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
   LogLevel ERROR
-  IPQoS none
+
+  # Detect when the local proxy has stopped responding
   ServerAliveInterval 30
   ServerAliveCountMax 3
 
@@ -71,15 +71,17 @@ Host nano4-proxy
 # [4] nano5-proxy — Connect via ssh-proxy (NO OTP needed)
 #     Prerequisites: run `uv run ssh_proxy.py nano5 -l 2223`
 #     Use this host in Antigravity / VS Code Remote-SSH.
+#     This alias is intended for a trusted, single-user computer.
 # -------------------------------------------------------------
 Host nano5-proxy
-  HostName localhost
+  HostName 127.0.0.1
   Port 2223
   User YOUR_USERNAME
+
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
   LogLevel ERROR
-  IPQoS none
+
   ServerAliveInterval 30
   ServerAliveCountMax 3
 
