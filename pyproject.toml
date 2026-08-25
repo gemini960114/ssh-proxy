@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ssh-proxy"
-version = "1.1.0"
+version = "0.3.0"
 description = "SSH OTP Local Proxy: authenticate OTP once, then connect freely without repeated prompts."
 readme = "README.md"
 license = { file = "LICENSE" }
