@@ -2,6 +2,8 @@
 
 A lightweight SSH OTP local proxy written in Python with AsyncSSH and Rich.
 
+📖 **Guides & Tutorials**: [English Tutorial](tutorial-en.md) | [繁體中文教學](tutorial-zh.md) | [Student Tutorial](student-tutorial.md) | [Beginner nano4 Guide](beginner-nano4-remote-ssh.md)
+
 Authenticate with OTP/2FA once, then connect as many times as you want without repeated prompts. It supports terminals, Antigravity / VS Code Remote-SSH, Git, SFTP, and SSH port forwarding.
 
 ## Quick Start
