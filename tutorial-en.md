@@ -13,6 +13,7 @@ This guide is designed for beginners and students, covering everything from inst
 5. [Classroom Quick Cheat Sheet](#5-classroom-quick-cheat-sheet)
 6. [CLI Usage & Advanced Options](#6-cli-usage--advanced-options)
 7. [Troubleshooting & FAQ](#7-troubleshooting--faq)
+8. [Packaging as Standalone Binary (Windows .exe / macOS Binary)](#8-packaging-as-standalone-binary-windows-exe--macos-binary)
 
 ---
 
@@ -342,5 +343,34 @@ Usage: uv run ssh-proxy [HOST] [OPTIONS]
 
 ---
 
+## 8. Packaging as Standalone Binary (Windows .exe / macOS Binary)
+
+To distribute `ssh-proxy` to users who do not have Python or `uv` installed, package it into a standalone single executable using PyInstaller:
+
+### Build Command
+
+```bash
+uv run pyinstaller --onefile --name ssh-proxy --clean ssh_proxy.py
+```
+
+### Execution
+
+- **Windows** (generated in `dist/ssh-proxy.exe`):
+  ```powershell
+  .\dist\ssh-proxy.exe nano4
+  ```
+- **macOS / Linux** (generated in `dist/ssh-proxy`):
+  ```bash
+  chmod +x dist/ssh-proxy
+  ./dist/ssh-proxy nano4
+  ```
+
+> **macOS Notes**:
+> 1. The binary architecture (Apple Silicon `arm64` vs Intel `x86_64`) matches the Mac architecture where the build is executed.
+> 2. If downloaded from the internet, clear Apple quarantine attributes if prompted: `xattr -d com.apple.quarantine dist/ssh-proxy`.
+
+---
+
 ## 📄 License
 This project is licensed under the [MIT License](LICENSE).
+

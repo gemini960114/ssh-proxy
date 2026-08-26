@@ -276,6 +276,30 @@ uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 2h
 
 This warning comes from `uv` when another virtual environment is active. It is usually harmless. To avoid it, deactivate the other environment or run from a clean PowerShell.
 
+## Packaging as Standalone Binary (Windows & macOS)
+
+You can package `ssh-proxy` into a single standalone executable file with PyInstaller. End users can run it directly without installing Python, uv, or dependencies.
+
+```powershell
+# Build standalone executable (Windows produces dist/ssh-proxy.exe; macOS produces dist/ssh-proxy)
+uv run pyinstaller --onefile --name ssh-proxy --clean ssh_proxy.py
+```
+
+### Usage:
+
+- **Windows**:
+  ```powershell
+  .\dist\ssh-proxy.exe nano4
+  ```
+- **macOS / Linux**:
+  ```bash
+  chmod +x dist/ssh-proxy
+  ./dist/ssh-proxy nano4
+  ```
+
+> **Note for macOS**: PyInstaller builds binaries native to the OS and architecture it runs on (Apple Silicon `arm64` or Intel `x86_64`). If downloaded from the internet, you may need to clear quarantine attributes with `xattr -d com.apple.quarantine ./dist/ssh-proxy`.
+
 ## License
 
 MIT
+

@@ -13,6 +13,7 @@
 5. [課堂初學者極簡速查表 (Cheat Sheet)](#5-課堂初學者極簡速查表-cheat-sheet)
 6. [常用指令與進階參數](#6-常用指令與進階參數)
 7. [常見問題與故障排除 (Troubleshooting)](#7-常見問題與故障排除-troubleshooting)
+8. [打包為免安裝獨立執行檔 (Windows .exe / macOS Binary)](#8-打包為免安裝獨立執行檔-windows-exe--macos-binary)
 
 ---
 
@@ -342,5 +343,34 @@ ssh nano4-proxy
 
 ---
 
+## 8. 打包為免安裝獨立執行檔 (Windows .exe / macOS Binary)
+
+若要分發給沒有安裝 Python 或 uv 的同學/使用者，可以使用 PyInstaller 打包成單一獨立執行檔：
+
+### 打包指令
+
+```bash
+uv run pyinstaller --onefile --name ssh-proxy --clean ssh_proxy.py
+```
+
+### 執行方式
+
+- **Windows**（生成於 `dist/ssh-proxy.exe`）：
+  ```powershell
+  .\dist\ssh-proxy.exe nano4
+  ```
+- **macOS / Linux**（生成於 `dist/ssh-proxy`）：
+  ```bash
+  chmod +x dist/ssh-proxy
+  ./dist/ssh-proxy nano4
+  ```
+
+> **macOS 注意事項**：
+> 1. 打包時產生的架構（Apple Silicon `arm64` 或 Intel `x86_64`）取決於編譯所在的 Mac。
+> 2. 若從網路下載執行檔後出現安全性提示，可執行 `xattr -d com.apple.quarantine dist/ssh-proxy` 移除隔離標籤。
+
+---
+
 ## 📄 授權條款 (License)
 本專案採用 [MIT License](LICENSE) 授權。
+

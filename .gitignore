@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 ssh_secrets.json
+build/
+dist/
+*.spec
