@@ -26,14 +26,10 @@ jobs:
             target: windows-x64
             binary_src: dist/ssh-proxy.exe
             binary_dest: ssh-proxy-windows-x64.exe
-          - os: macos-14
+          - os: macos-latest
             target: macos-arm64
             binary_src: dist/ssh-proxy
             binary_dest: ssh-proxy-macos-arm64
-          - os: macos-13
-            target: macos-x64
-            binary_src: dist/ssh-proxy
-            binary_dest: ssh-proxy-macos-x64
           - os: ubuntu-latest
             target: linux-x64
             binary_src: dist/ssh-proxy
