@@ -98,6 +98,9 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: release-assets/*
+          files: |
+            release-assets/*
+            ssh_config.example
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
