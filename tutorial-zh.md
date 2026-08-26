@@ -48,7 +48,10 @@
 
 ## 2. Windows 完整安裝與操作步驟
 
+> 💡 **最推薦（免安裝 Python/uv）**：直接至 [GitHub Releases](https://github.com/gemini960114/ssh-proxy/releases/latest) 下載 **`ssh-proxy-windows-x64.exe`**，設定好 SSH Config 後雙擊即可執行！若想透過原始碼執行，請依照以下步驟安裝。
+
 ### 步驟 1：開啟 PowerShell
+
 - 在 Windows 搜尋列輸入 `PowerShell` 並開啟。
 - 建議使用**一般使用者權限**即可，不需要 Administrator。
 

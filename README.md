@@ -84,24 +84,37 @@ uv run ssh-proxy nano4 --max-lifetime 0 --idle-timeout 0  # Disable both
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv) recommended, or another Python package manager
 
-## Installation
+## Installation & Quick Start
+
+### Option A: Standalone Binary (Recommended — No Python required)
+
+Download the pre-compiled binary for your system from [GitHub Releases](https://github.com/gemini960114/ssh-proxy/releases/latest):
+
+- **Windows**: Download `ssh-proxy-windows-x64.exe` (or double-click to connect to `nano4`):
+  ```powershell
+  .\ssh-proxy-windows-x64.exe nano4
+  ```
+- **macOS (Apple Silicon)**: Download `ssh-proxy-macos-arm64`:
+  ```bash
+  chmod +x ssh-proxy-macos-arm64
+  ./ssh-proxy-macos-arm64 nano4
+  ```
+- **Linux**: Download `ssh-proxy-linux-x64`:
+  ```bash
+  chmod +x ssh-proxy-linux-x64
+  ./ssh-proxy-linux-x64 nano4
+  ```
+
+### Option B: Run from Source with uv (Developer mode)
 
 ```powershell
+# Clone and install dependencies
 git clone https://github.com/gemini960114/ssh-proxy.git
 cd ssh-proxy
 uv sync
-```
 
-Run as a script:
-
-```powershell
+# Start the proxy
 uv run ssh_proxy.py nano4
-```
-
-Or run the packaged console command:
-
-```powershell
-uv run ssh-proxy nano4
 ```
 
 ## Usage

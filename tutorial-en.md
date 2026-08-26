@@ -48,7 +48,10 @@ Your Local Client (Terminal / Antigravity / VS Code)
 
 ## 2. Windows Installation & Setup Step-by-Step
 
+> 💡 **Recommended (No Python/uv needed)**: Download **`ssh-proxy-windows-x64.exe`** directly from [GitHub Releases](https://github.com/gemini960114/ssh-proxy/releases/latest). Once your SSH config is set, simply double-click it to run! Follow below if you prefer running from source.
+
 ### Step 1: Open PowerShell
+
 - Type `PowerShell` in the Windows Search bar and launch it.
 - Using standard user privileges is recommended (Administrator is not required).
 

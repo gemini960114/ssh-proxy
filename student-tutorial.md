@@ -16,7 +16,24 @@ Even when opening a second terminal or Remote-SSH window in the same working env
 
 `ssh-proxy` solves this by keeping one authenticated SSH connection alive. After that, students connect to a local proxy host such as `nano4-proxy` without repeating OTP.
 
-## Step 1: Install uv on Windows
+## Two Ways to Get ssh-proxy
+
+- **Method A (Fastest & Recommended)**: Download the pre-built standalone `.exe` (No Python or uv required).
+- **Method B (Developer Setup)**: Install `uv` and run from source repository.
+
+---
+
+## Method A: Use Pre-Built Executable (Fastest)
+
+1. Download **`ssh-proxy-windows-x64.exe`** from [GitHub Releases](https://github.com/gemini960114/ssh-proxy/releases/latest).
+2. Save it to an easy-to-find folder (e.g. `C:\Users\<username>\ssh-proxy-windows-x64.exe` or your Desktop).
+3. Proceed directly to **Step 4: Configure SSH** below, then simply double-click the `.exe` to start!
+
+---
+
+## Method B: Install via uv (Developer Mode)
+
+### Step 1: Install uv on Windows
 
 Open PowerShell and run:
 
@@ -32,7 +49,7 @@ uv --version
 
 Reference: https://docs.astral.sh/uv/getting-started/installation/
 
-## Step 2: Check SSH Is Available
+### Step 2: Check SSH Is Available
 
 In PowerShell, run:
 
@@ -46,7 +63,7 @@ Windows 10 and Windows 11 usually include OpenSSH Client. If `ssh` is not found,
 Settings -> System -> Optional features -> Add an optional feature -> OpenSSH Client
 ```
 
-## Step 3: Download ssh-proxy
+### Step 3: Download and Setup ssh-proxy
 
 In PowerShell:
 
@@ -56,6 +73,7 @@ git clone https://github.com/gemini960114/ssh-proxy.git
 cd ssh-proxy
 uv sync
 ```
+
 
 ## Step 4: Configure SSH
 
