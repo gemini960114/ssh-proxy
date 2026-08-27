@@ -27,7 +27,7 @@ Even when opening a second terminal or Remote-SSH window in the same working env
 
 1. Download **`ssh-proxy-windows-x64.exe`** from [GitHub Releases](https://github.com/gemini960114/ssh-proxy/releases/latest).
 2. Save it to an easy-to-find folder (e.g. `C:\Users\<username>\ssh-proxy-windows-x64.exe` or your Desktop).
-3. Proceed directly to **Step 4: Configure SSH** below, then simply double-click the `.exe` to start!
+3. Proceed directly to **Step 4: Configure SSH** below. You can double-click the `.exe` for default settings, but starting it from PowerShell is recommended because it keeps the final shutdown reason visible and lets you customize timeouts.
 
 ---
 
@@ -129,7 +129,13 @@ Important:
 
 ## Step 5: Start ssh-proxy
 
-Open the first PowerShell window:
+For the downloaded standalone EXE, open PowerShell in the folder containing the file and run:
+
+```powershell
+.\ssh-proxy-windows-x64.exe nano4
+```
+
+When running from source, open the first PowerShell window and run:
 
 ```powershell
 cd $env:USERPROFILE\ssh-proxy
@@ -152,7 +158,14 @@ Complete the authentication prompts:
 
 After login succeeds, keep this PowerShell window open. It is running the local SSH proxy.
 
-By default, the proxy stops after 8 hours, after 60 minutes with no local SSH clients, or immediately when the remote SSH connection closes. An active terminal or Remote-SSH connection prevents the idle timeout.
+The proxy has two separate shutdown timers:
+
+| Option | Default | Meaning |
+|---|---:|---|
+| `--idle-timeout` | `60m` | Stops only after 60 continuous minutes with **no local terminal or Remote-SSH client connected**. An active client prevents this timer from expiring. |
+| `--max-lifetime` | `8h` | Stops after 8 total hours from startup, even when a client remains connected. |
+
+The 30-second upstream SSH keepalive prevents network-idle drops, but it does not reset these application timers. The proxy also stops immediately if the upstream SSH connection closes.
 
 ## Step 6: Test the Proxy
 
@@ -244,10 +257,28 @@ The remote SSH host key no longer matches the key saved on this computer. The pr
 
 ### The proxy stops after 8 hours or 60 idle minutes
 
-Restart the proxy and complete OTP again, or choose different limits:
+Read the last line in the proxy PowerShell window:
+
+- `Idle timeout reached...`: no local client was connected for 60 minutes.
+- `Maximum lifetime reached...`: the proxy reached 8 total hours.
+- `Remote SSH connection closed.`: the upstream connection ended instead.
+
+For the downloaded EXE, extend idle time to 2 hours and total lifetime to 12 hours with:
 
 ```powershell
-uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 2h
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 2h --max-lifetime 12h
+```
+
+When running from source, use the same options:
+
+```powershell
+uv run ssh-proxy nano4 --idle-timeout 2h --max-lifetime 12h
+```
+
+Set both values to `0` only when you intentionally want to disable both automatic shutdown timers:
+
+```powershell
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 0 --max-lifetime 0
 ```
 
 ## Teaching Summary

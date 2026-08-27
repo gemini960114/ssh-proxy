@@ -298,14 +298,6 @@ ssh nano4-proxy
   ```bash
   uv run ssh-proxy nano5 -l 2223
   ```
-- **調整安全性逾時時間（預設最長 8 小時、閒置 60 分鐘）**：
-  ```bash
-  uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 30m
-  ```
-- **停用逾時自動關閉（設為 0）**：
-  ```bash
-  uv run ssh-proxy nano4 --max-lifetime 0 --idle-timeout 0
-  ```
 - **指定自訂 known-hosts 檔案**：
   ```bash
   # Windows
@@ -313,6 +305,36 @@ ssh nano4-proxy
   # macOS
   uv run ssh-proxy nano4 --known-hosts "$HOME/.ssh/nchc_known_hosts"
   ```
+
+### 逾時參數說明
+
+Proxy 有兩個彼此獨立的自動停止計時器：
+
+| 參數 | 預設值 | 計時方式 |
+|---|---:|---|
+| `--idle-timeout` | `60m` | 只有在**沒有任何本機 SSH client 連線**時才累計。只要終端機或 Remote-SSH 仍連著，就不會觸發；最後一個 client 中斷時會重新開始計時。 |
+| `--max-lifetime` | `8h` | 從 Proxy 啟動後持續累計，即使有 client 正在使用，達到上限仍會停止。 |
+
+上游 SSH 每 30 秒送出的 Keep-Alive 是用來避免網路閒置斷線，**不算本機 client 活動**，因此不會重設上述計時器。
+
+下載版 Windows EXE 範例：
+
+```powershell
+# 將無 client 的閒置時間延長為 4 小時；總存活時間仍是預設 8 小時。
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 4h
+
+# 將兩個限制都延長為一天。
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 1d --max-lifetime 1d
+
+# 完全停用兩個自動停止計時器。
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 0 --max-lifetime 0
+```
+
+從原始碼執行時，參數完全相同：
+
+```powershell
+uv run ssh-proxy nano4 --idle-timeout 2h --max-lifetime 12h
+```
 
 ---
 
@@ -341,8 +363,15 @@ ssh nano4-proxy
 - **解法**：此警告通常不影響執行；若想消除，可執行 `deactivate` 退出其他虛擬環境，或重新開啟一個乾淨的終端機。
 
 ### Q5: Proxy 運作一段時間後自動停止
-- **原因**：這是預設的安全防護機制（8 小時或無連線閒置 60 分鐘自動關閉）。
-- **解法**：重新執行 `uv run ssh-proxy nano4` 並輸入 OTP，或在啟動時加上 `--max-lifetime 12h` 延長時間。
+- **`Idle timeout reached...`**：連續 60 分鐘沒有本機終端機或 Remote-SSH client 連線。使用 `--idle-timeout 2h` 可延長為 2 小時。
+- **`Maximum lifetime reached...`**：Proxy 已達預設 8 小時總存活時間。使用 `--max-lifetime 12h` 可延長為 12 小時。
+- **`Remote SSH connection closed.`**：上游 SSH 已中斷，與上述兩個計時器不同。
+
+若是雙擊 EXE 啟動，程式結束時視窗也會一起關閉。建議從 PowerShell 啟動，才能看到最後的停止原因：
+
+```powershell
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 2h --max-lifetime 12h
+```
 
 ---
 
@@ -376,4 +405,3 @@ uv run pyinstaller --onefile --name ssh-proxy --clean ssh_proxy.py
 
 ## 📄 授權條款 (License)
 本專案採用 [MIT License](LICENSE) 授權。
-

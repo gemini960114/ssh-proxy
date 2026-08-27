@@ -66,18 +66,32 @@ uv run ssh-proxy nano4 --known-hosts "$env:USERPROFILE\.ssh\nchc_known_hosts"
 
 The local SSH server intentionally requires no password or OTP and listens only on IPv4 loopback (`127.0.0.1`). This mode is intended for a trusted, single-user computer. Other programs running on the same computer can use the authenticated proxy while it is running.
 
-Safety limits are enabled by default:
+Two application-level safety timers are enabled by default:
 
-- The proxy stops after 8 hours.
-- It stops after 60 minutes with no local SSH clients connected.
-- An active terminal or Remote-SSH connection prevents the idle timeout.
-- The proxy stops if the remote SSH connection closes.
+| Option | Default | What it measures |
+|---|---:|---|
+| `--idle-timeout` | `60m` | Time with **no local SSH client connected**. The timer resets when the last terminal or Remote-SSH client disconnects. It does not run while at least one local client remains connected. |
+| `--max-lifetime` | `8h` | Total proxy runtime, including time with active clients. Reaching this limit always stops the proxy. |
 
-Override these limits when necessary:
+These timers are separate from the 30-second upstream SSH keepalive. Keepalive protects the remote connection from network-idle drops, but it does not count as local client activity and does not reset either safety timer. The proxy also stops immediately if the remote SSH connection closes.
+
+Examples for the standalone Windows executable:
 
 ```powershell
-uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 30m
-uv run ssh-proxy nano4 --max-lifetime 0 --idle-timeout 0  # Disable both
+# Allow up to 4 idle hours; the default 8-hour total limit still applies.
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 4h
+
+# Allow one day both idle and in total.
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 1d --max-lifetime 1d
+
+# Disable both automatic timers.
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 0 --max-lifetime 0
+```
+
+The same options work when running from source:
+
+```powershell
+uv run ssh-proxy nano4 --idle-timeout 4h --max-lifetime 12h
 ```
 
 ## Requirements
@@ -280,10 +294,22 @@ Do not delete the recorded key merely to bypass this warning. First verify the n
 
 ### The proxy stopped after 8 hours or while idle
 
-These are the default safety limits. Start it again and complete OTP, or choose different limits:
+Check the final message in the proxy window:
+
+- `Idle timeout reached...` means no local terminal or Remote-SSH client was connected for 60 minutes.
+- `Maximum lifetime reached...` means the proxy reached its 8-hour total runtime.
+- `Remote SSH connection closed.` means the upstream connection ended; this is not caused by either timer.
+
+Start the proxy from PowerShell instead of double-clicking the executable if you need to see this message after it exits. To extend both timers:
 
 ```powershell
-uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 2h
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 2h --max-lifetime 12h
+```
+
+When running from source, use the same options:
+
+```powershell
+uv run ssh-proxy nano4 --idle-timeout 2h --max-lifetime 12h
 ```
 
 ### `warning: VIRTUAL_ENV=... does not match`

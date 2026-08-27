@@ -298,14 +298,6 @@ Usage: uv run ssh-proxy [HOST] [OPTIONS]
   ```bash
   uv run ssh-proxy nano5 -l 2223
   ```
-- **Custom Session Lifetime & Idle Timeout (default: max 8h, idle 60m)**:
-  ```bash
-  uv run ssh-proxy nano4 --max-lifetime 12h --idle-timeout 30m
-  ```
-- **Disable Automatic Timeout (Set to 0)**:
-  ```bash
-  uv run ssh-proxy nano4 --max-lifetime 0 --idle-timeout 0
-  ```
 - **Custom known-hosts file**:
   ```bash
   # Windows
@@ -313,6 +305,36 @@ Usage: uv run ssh-proxy [HOST] [OPTIONS]
   # macOS
   uv run ssh-proxy nano4 --known-hosts "$HOME/.ssh/nchc_known_hosts"
   ```
+
+### Timeout Options
+
+The proxy has two independent automatic shutdown timers:
+
+| Option | Default | How it is measured |
+|---|---:|---|
+| `--idle-timeout` | `60m` | Accumulates only while **no local SSH client is connected**. An active terminal or Remote-SSH client prevents this timeout. The timer restarts when the last client disconnects. |
+| `--max-lifetime` | `8h` | Accumulates from proxy startup even while clients are active. Reaching the limit always stops the proxy. |
+
+The upstream SSH keepalive sent every 30 seconds prevents network-idle drops. It does **not** count as local client activity and does not reset either timer.
+
+Standalone Windows executable examples:
+
+```powershell
+# Allow 4 idle hours; the default 8-hour total lifetime still applies.
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 4h
+
+# Extend both limits to one day.
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 1d --max-lifetime 1d
+
+# Disable both automatic shutdown timers.
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 0 --max-lifetime 0
+```
+
+The same options work when running from source:
+
+```powershell
+uv run ssh-proxy nano4 --idle-timeout 2h --max-lifetime 12h
+```
 
 ---
 
@@ -341,8 +363,15 @@ Usage: uv run ssh-proxy [HOST] [OPTIONS]
 - **Fix**: This warning does not affect execution. Run `deactivate` or open a fresh terminal window to suppress it.
 
 ### Q5: Proxy automatically closes after running for a while
-- **Cause**: This is a default security mechanism (closes after 8 hours max lifetime or 60 minutes of idle time).
-- **Fix**: Re-run `uv run ssh-proxy nano4` with OTP, or add `--max-lifetime 12h` when starting.
+- **`Idle timeout reached...`**: No local terminal or Remote-SSH client was connected for 60 minutes. Use `--idle-timeout 2h` to allow two idle hours.
+- **`Maximum lifetime reached...`**: The proxy reached its default 8-hour total runtime. Use `--max-lifetime 12h` to extend it.
+- **`Remote SSH connection closed.`**: The upstream SSH connection ended; this is separate from both timers.
+
+If you start the EXE by double-clicking it, its window closes when the process exits. Start it from PowerShell to keep the final shutdown reason visible:
+
+```powershell
+.\ssh-proxy-windows-x64.exe nano4 --idle-timeout 2h --max-lifetime 12h
+```
 
 ---
 
@@ -376,4 +405,3 @@ uv run pyinstaller --onefile --name ssh-proxy --clean ssh_proxy.py
 
 ## 📄 License
 This project is licensed under the [MIT License](LICENSE).
-
