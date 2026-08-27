@@ -42,6 +42,7 @@ Your SSH client (terminal / Antigravity / VS Code)
 3. After authentication succeeds, it starts a local SSH server on `127.0.0.1:2222` or the port you choose with `-l`.
 4. Local SSH sessions are bridged through the authenticated remote connection.
 5. Shell/exec stdin, stdout, stderr, and TCP forwarding (`-L`, `-D`, `ProxyJump`) are tunneled through the remote connection. TCP forwarding is required by Antigravity and VS Code Remote-SSH.
+6. The authenticated remote SSH connection sends a keepalive every 30 seconds and stops after 3 unanswered keepalives.
 
 ## Security Model
 

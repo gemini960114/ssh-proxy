@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import asyncssh
 
@@ -121,6 +121,23 @@ class HostKeyVerificationTests(unittest.IsolatedAsyncioTestCase):
             )
         connection.close()
         await connection.wait_closed()
+
+    async def test_remote_connection_enables_ssh_keepalive(self):
+        with patch(
+            'ssh_proxy.asyncssh.connect',
+            new_callable=AsyncMock,
+        ) as connect:
+            await ssh_proxy.connect_remote(
+                '127.0.0.1',
+                self.port,
+                'test-user',
+                self.known_hosts,
+            )
+
+        connect.assert_awaited_once()
+        options = connect.await_args.kwargs
+        self.assertEqual(options['keepalive_interval'], 30)
+        self.assertEqual(options['keepalive_count_max'], 3)
 
     async def test_recorded_key_mismatch_is_rejected_without_prompt(self):
         ssh_proxy.ensure_known_hosts_file(self.known_hosts)

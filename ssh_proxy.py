@@ -109,6 +109,12 @@ async def connect_remote(remote_host: str, remote_port: int, remote_user: str,
         'config': None,
         'preferred_auth': ['keyboard-interactive'],
         'client_keys': [],
+        # Keep the OTP-authenticated upstream session active even when no
+        # application data is flowing. This is configured here because
+        # config=None intentionally prevents AsyncSSH from reading
+        # ServerAliveInterval/ServerAliveCountMax from ~/.ssh/config.
+        'keepalive_interval': 30,
+        'keepalive_count_max': 3,
     }
 
     try:
