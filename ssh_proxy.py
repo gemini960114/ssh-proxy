@@ -559,7 +559,7 @@ async def start_proxy(host: str, remote_port: int, local_port: int,
         style="dim",
     )
     txt.append("Or use the alias (already added to your config):\n", style="white")
-    txt.append("  ssh nano4-proxy\n\n", style="bold yellow")
+    txt.append(f"  ssh {host}-proxy\n\n", style="bold yellow")
     txt.append("Press Ctrl+C to stop the proxy.", style="dim")
     CONSOLE.print(Panel(txt, title="Proxy Server Status", border_style="green"))
 

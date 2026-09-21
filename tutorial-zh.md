@@ -224,17 +224,46 @@ Host nano5-proxy
   LogLevel ERROR
   ServerAliveInterval 30
   ServerAliveCountMax 3
+
+# 4. 若有使用 創進一號 T3-C4（Port 2224）
+Host t3-c4-proxy
+  HostName 127.0.0.1
+  Port 2224
+  User YOUR_USERNAME
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
 ```
+
+### 多主機並存使用對照表（同時連線不同機器）
+
+當需要同時連線多台主機時，請替每台機器分配獨立的本地 Port：
+
+| 目標主機 | 啟動 Proxy 指令 | 本地 Port | SSH / VS Code 連線別名 |
+| :--- | :--- | :---: | :--- |
+| **nano4** | `uv run ssh_proxy.py nano4` *(或 `.\ssh-proxy-windows-x64.exe nano4`)* | `2222` *(預設)* | `ssh nano4-proxy` |
+| **nano5** | `uv run ssh_proxy.py nano5 -l 2223` *(或 `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)* | `2223` | `ssh nano5-proxy` |
+| **t3-c4** | `uv run ssh_proxy.py t3-c4 -l 2224` *(或 `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)* | `2224` | `ssh t3-c4-proxy` |
+
+> 💡 **注意事項**：`ssh-proxy` 預設監聽在 Port `2222`。若未加上 `-l 2224` 啟動第二台機器，會因為 Port 2222 已被占用而報錯，或導致連線全部轉發到同一台。請務必指定不同 Port。
 
 ### 設定後的使用方式
 1. **一般終端機連線**：
-   在 Proxy 啟動狀態下，只要輸入以下簡短指令即可連線：
+   在 Proxy 啟動狀態下，只要輸入以下簡短別名即可連線：
    ```bash
-   ssh nano4-proxy
+   ssh nano4-proxy    # 連線 nano4
+   ssh t3-c4-proxy    # 連線 t3-c4
+   ```
+   *(若尚未設定 `~/.ssh/config` 別名，亦可直接使用純指令連線)：*
+   ```bash
+   # 例如連線 t3-c4 (Port 2224)：
+   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2224 127.0.0.1
    ```
 2. **VS Code / Antigravity Remote-SSH**：
    - 點擊左下角 Remote-SSH 按鈕（或 `Ctrl+Shift+P` / `Cmd+Shift+P` 搜尋 `Remote-SSH: Connect to Host...`）。
-   - 選擇 **`nano4-proxy`**（注意：請選 `-proxy` 別名，不要選原始的 `nano4`）。
+   - 選擇對應的 Proxy 別名（例如 **`nano4-proxy`** 或 **`t3-c4-proxy`**，注意：請選 `-proxy` 別名，不要選原始主機名稱）。
    - 即可直接開啟遠端工作區進行開發與偵錯！
 
 ---

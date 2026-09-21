@@ -5,6 +5,12 @@
 # Then run:
 #   uv run ssh_proxy.py nano4 -l 2222   (for nano4)
 #   uv run ssh_proxy.py nano5 -l 2223   (for nano5)
+#   uv run ssh_proxy.py t3-c4 -l 2224   (for t3-c4)
+#
+# If running compiled binaries on Windows:
+#   .\ssh-proxy-windows-x64.exe nano4           # default port 2222
+#   .\ssh-proxy-windows-x64.exe nano5 -l 2223
+#   .\ssh-proxy-windows-x64.exe t3-c4 -l 2224
 # =============================================================
 
 
@@ -45,9 +51,30 @@ Host nano5
 
 
 # -------------------------------------------------------------
-# [3] nano4-proxy — Connect via ssh-proxy (NO OTP needed)
+# [3] t3-c4 — Direct connection (requires OTP each time)
+# -------------------------------------------------------------
+Host t3-c4
+  HostName t3-c4.nchc.org.tw
+  User YOUR_USERNAME
+
+  PubkeyAuthentication no
+  KbdInteractiveAuthentication yes
+  PreferredAuthentications keyboard-interactive,password
+
+  IPQoS none
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+
+# -------------------------------------------------------------
+# [4] nano4-proxy — Connect via ssh-proxy (NO OTP needed)
 #     Prerequisites: run `uv run ssh_proxy.py nano4 -l 2222`
+#     (or `.\ssh-proxy-windows-x64.exe nano4`)
 #     Use this host in Antigravity / VS Code Remote-SSH.
+#
+#     Direct command (without using ~/.ssh/config alias):
+#       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 127.0.0.1
+#
 #     The local proxy uses a new temporary host key on each run, so host-key
 #     checking is disabled ONLY for this loopback alias. Never copy these
 #     two settings to nano4, nano5, or another remote host.
@@ -68,9 +95,14 @@ Host nano4-proxy
 
 
 # -------------------------------------------------------------
-# [4] nano5-proxy — Connect via ssh-proxy (NO OTP needed)
+# [5] nano5-proxy — Connect via ssh-proxy (NO OTP needed)
 #     Prerequisites: run `uv run ssh_proxy.py nano5 -l 2223`
+#     (or `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)
 #     Use this host in Antigravity / VS Code Remote-SSH.
+#
+#     Direct command (without using ~/.ssh/config alias):
+#       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2223 127.0.0.1
+#
 #     This alias is intended for a trusted, single-user computer.
 # -------------------------------------------------------------
 Host nano5-proxy
@@ -87,7 +119,29 @@ Host nano5-proxy
 
 
 # -------------------------------------------------------------
-# [5] (Optional) ProxyJump through nano4-proxy to compute nodes
+# [6] t3-c4-proxy — Connect via ssh-proxy (NO OTP needed)
+#     Prerequisites: run `uv run ssh_proxy.py t3-c4 -l 2224`
+#     (or `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)
+#     Use this host in Antigravity / VS Code Remote-SSH.
+#
+#     Direct command (without using ~/.ssh/config alias):
+#       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2224 127.0.0.1
+# -------------------------------------------------------------
+Host t3-c4-proxy
+  HostName 127.0.0.1
+  Port 2224
+  User YOUR_USERNAME
+
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+
+# -------------------------------------------------------------
+# [7] (Optional) ProxyJump through nano4-proxy to compute nodes
 #     Example: ssh 25a-mpn02
 #     This avoids another OTP prompt by jumping through the local proxy.
 # -------------------------------------------------------------

@@ -12,13 +12,17 @@ Authenticate with OTP/2FA once, then connect as many times as you want without r
 # Step 1: Start the proxy. Enter OTP only once.
 uv run ssh_proxy.py nano4          # nano4, local port 2222
 uv run ssh_proxy.py nano5 -l 2223  # nano5, local port 2223
+uv run ssh_proxy.py t3-c4 -l 2224  # t3-c4, local port 2224
 
 # Step 2: Connect freely. No OTP needed.
 ssh -p 2222 127.0.0.1   # forwards to nano4.nchc.org.tw
 ssh -p 2223 127.0.0.1   # forwards to nano5.nchc.org.tw
+ssh -p 2224 127.0.0.1   # forwards to t3-c4.nchc.org.tw
 
 # Or use aliases from ssh_config.example.
 ssh nano4-proxy
+ssh nano5-proxy
+ssh t3-c4-proxy
 ```
 
 Keep the proxy terminal open. Press `Ctrl+C` to stop it.
@@ -170,8 +174,17 @@ options:
 
 ### Connect After Proxy Is Running
 
+If you have not set up `~/.ssh/config` aliases, you can connect directly using OpenSSH:
+
 ```powershell
+# For nano4 (default port 2222):
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 127.0.0.1
+
+# For nano5 (port 2223):
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2223 127.0.0.1
+
+# For t3-c4 (port 2224):
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2224 127.0.0.1
 ```
 
 ### SSH Config Aliases
@@ -229,17 +242,37 @@ Host nano5-proxy
 
   ServerAliveInterval 30
   ServerAliveCountMax 3
+
+Host t3-c4-proxy
+  HostName 127.0.0.1
+  Port 2224
+  User YOUR_USERNAME
+
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
 ```
 
-The proxy binds specifically to IPv4 loopback (`127.0.0.1`), so the alias uses that address instead of `localhost`. This avoids an unnecessary IPv6 `::1` connection attempt. The proxy port must match the port used when starting `ssh_proxy.py`. For example, `nano4-proxy` uses port `2222`, so start it with:
+The proxy binds specifically to IPv4 loopback (`127.0.0.1`), so the alias uses that address instead of `localhost`. This avoids an unnecessary IPv6 `::1` connection attempt. The proxy port must match the port used when starting `ssh_proxy.py`.
 
-`StrictHostKeyChecking no` and `UserKnownHostsFile /dev/null` are necessary here because the local proxy currently creates a new temporary host key on every start. Keep these settings scoped to `nano4-proxy` and `nano5-proxy`; never add them to the real remote hosts.
+`StrictHostKeyChecking no` and `UserKnownHostsFile /dev/null` are necessary here because the local proxy currently creates a new temporary host key on every start. Keep these settings scoped to proxy aliases (`nano4-proxy`, `nano5-proxy`, `t3-c4-proxy`); never add them to the real remote hosts.
 
-```powershell
-uv run ssh_proxy.py nano4 -l 2222
-```
+### Multi-Host Setup & Simultaneous Proxying
 
-For Antigravity or VS Code Remote-SSH, choose the proxy host, such as `nano4-proxy`, not the direct host `nano4`.
+If you need to connect to multiple remote servers concurrently, run a separate proxy process for each host on a distinct local port:
+
+| Target Host | Start Proxy Command | Local Port | Proxy SSH Alias |
+| :--- | :--- | :---: | :--- |
+| `nano4` | `uv run ssh_proxy.py nano4` *(or `.\ssh-proxy-windows-x64.exe nano4`)* | `2222` *(default)* | `ssh nano4-proxy` |
+| `nano5` | `uv run ssh_proxy.py nano5 -l 2223` *(or `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)* | `2223` | `ssh nano5-proxy` |
+| `t3-c4` | `uv run ssh_proxy.py t3-c4 -l 2224` *(or `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)* | `2224` | `ssh t3-c4-proxy` |
+
+> **Important**: `ssh-proxy` defaults to local port `2222`. If you run `ssh-proxy t3-c4` without `-l 2224`, it will bind to port `2222`. Attempting to run a second proxy without changing the port will fail with `Address already in use` (or traffic to `127.0.0.1:2222` will be forwarded to the last-started host). Always use `-l <port>` when running multiple proxies simultaneously.
+
+For Antigravity or VS Code Remote-SSH, choose the proxy host (such as `nano4-proxy` or `t3-c4-proxy`), not the direct host.
 
 ### Verify Remote-SSH Compatibility
 

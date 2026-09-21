@@ -224,17 +224,46 @@ Host nano5-proxy
   LogLevel ERROR
   ServerAliveInterval 30
   ServerAliveCountMax 3
+
+# 4. For T3-C4 (Port 2224)
+Host t3-c4-proxy
+  HostName 127.0.0.1
+  Port 2224
+  User YOUR_USERNAME
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
 ```
+
+### Multi-Host Setup (Simultaneous Proxying)
+
+When connecting to multiple remote hosts concurrently, assign each machine a unique local port:
+
+| Target Host | Start Proxy Command | Local Port | Proxy SSH / VS Code Alias |
+| :--- | :--- | :---: | :--- |
+| **nano4** | `uv run ssh_proxy.py nano4` *(or `.\ssh-proxy-windows-x64.exe nano4`)* | `2222` *(default)* | `ssh nano4-proxy` |
+| **nano5** | `uv run ssh_proxy.py nano5 -l 2223` *(or `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)* | `2223` | `ssh nano5-proxy` |
+| **t3-c4** | `uv run ssh_proxy.py t3-c4 -l 2224` *(or `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)* | `2224` | `ssh t3-c4-proxy` |
+
+> 💡 **Note**: `ssh-proxy` defaults to port `2222`. Starting a second proxy without `-l <port>` will fail due to port conflict (`Address already in use`), or redirect traffic to the last started instance. Always specify distinct local ports.
 
 ### How to Use After Setup
 1. **Standard Terminal Connection**:
    While `ssh-proxy` is running, simply execute:
    ```bash
-   ssh nano4-proxy
+   ssh nano4-proxy    # Connect to nano4
+   ssh t3-c4-proxy    # Connect to t3-c4
+   ```
+   *(If you haven't set up `~/.ssh/config` aliases yet, you can also connect directly via command line):*
+   ```bash
+   # For example connecting to t3-c4 (Port 2224):
+   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2224 127.0.0.1
    ```
 2. **VS Code / Antigravity Remote-SSH**:
    - Click the bottom-left Remote-SSH icon (or press `Ctrl+Shift+P` / `Cmd+Shift+P` and search `Remote-SSH: Connect to Host...`).
-   - Select **`nano4-proxy`** (Make sure to select `-proxy`, not the original `nano4`).
+   - Select the corresponding proxy alias (e.g. **`nano4-proxy`** or **`t3-c4-proxy`**; make sure to select `-proxy`, not the direct host).
    - You can now open remote folders and debug without OTP prompts!
 
 ---
