@@ -3,8 +3,10 @@ SSH OTP Proxy
 使用 asyncssh process_factory API 建立本地代理，讓後續連線免密碼/免 OTP。
 """
 import asyncio
+import errno
 import getpass
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -578,13 +580,200 @@ def format_duration(seconds: int) -> str:
     return f'{seconds}s'
 
 
+def reserve_local_port(port: int) -> socket.socket:
+    """在 OTP 登入前先綁定並 listen 本地 port。
+
+    port 被占用時立即失敗，不會浪費一次 OTP。立即 listen 是必要的：
+    Linux 上兩個設定 SO_REUSEADDR 的 socket 在都未 listen 前可綁同一 port。
+    OTP 期間進來的本地連線會在 backlog 中等待，proxy 啟動後才處理，
+    其他程式無法在這段期間搶走 port 架設假的 server。
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if os.name == 'nt':
+            # Windows 的 SO_REUSEADDR 允許其他程式搶綁同一 port，改用獨占模式。
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            # 與 asyncio 預設相同：允許重用 TIME_WAIT 中的 port。
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(('127.0.0.1', port))
+        sock.listen(100)
+    except OSError:
+        sock.close()
+        raise
+    return sock
+
+
+def is_port_in_use_error(exc: OSError) -> bool:
+    """判斷 bind 失敗是否因為 port 已被占用（跨平台）。"""
+    codes = {errno.EADDRINUSE, getattr(errno, 'WSAEADDRINUSE', 10048)}
+    return exc.errno in codes or getattr(exc, 'winerror', None) in codes
+
+
+def program_command() -> str:
+    """回傳使用者啟動本程式的指令，用於錯誤訊息中的範例。"""
+    if getattr(sys, 'frozen', False):
+        name = Path(sys.executable).name
+        return f'.\\{name}' if os.name == 'nt' else f'./{name}'
+    return 'uv run ssh_proxy.py'
+
+
+def port_owner_commands(port: int) -> tuple[list[str], list[str]]:
+    """回傳目前作業系統「查詢占用程式」與「結束程式」的指令。"""
+    if os.name == 'nt':
+        return (
+            [
+                '# PowerShell',
+                f'Get-Process -Id (Get-NetTCPConnection -LocalPort {port} '
+                '-State Listen).OwningProcess',
+                '# Command Prompt (cmd)',
+                f'netstat -ano | findstr :{port}',
+            ],
+            [
+                '# PowerShell',
+                'Stop-Process -Id <PID>',
+                '# Command Prompt (cmd)',
+                'taskkill /PID <PID> /F',
+            ],
+        )
+    if sys.platform == 'darwin':
+        return (
+            [f'lsof -nP -iTCP:{port} -sTCP:LISTEN'],
+            ['kill <PID>', '# If it does not exit:', 'kill -9 <PID>'],
+        )
+    return (
+        [
+            f"ss -ltnp 'sport = :{port}'",
+            '# or',
+            f'lsof -nP -iTCP:{port} -sTCP:LISTEN',
+        ],
+        ['kill <PID>', '# If it does not exit:', 'kill -9 <PID>'],
+    )
+
+
+def configured_proxy_port(host: str) -> int | None:
+    """回傳 ~/.ssh/config 中 `<host>-proxy` 指向本機時設定的 Port。"""
+    resolved = resolve_with_openssh(f'{host}-proxy')
+    if resolved is None:
+        return None
+    hostname, _, port = resolved
+    if hostname not in {'127.0.0.1', 'localhost', '::1'}:
+        return None
+    return port
+
+
+def find_free_local_port(start: int, attempts: int = 20) -> int | None:
+    """從 start 開始尋找目前可綁定的本地 port，僅供錯誤訊息建議使用。"""
+    for port in range(start, min(start + attempts, 65536)):
+        try:
+            reserve_local_port(port).close()
+        except OSError:
+            continue
+        return port
+    return None
+
+
+def alternative_port_hint(host: str, port: int) -> str:
+    """產生「改用其他本地 port」的建議文字。"""
+    proxy_port = configured_proxy_port(host)
+    if proxy_port is not None and proxy_port != port:
+        return (
+            f"Your ~/.ssh/config sets [bold]{host}-proxy[/bold] to "
+            f"[bold]Port {proxy_port}[/bold]. Start this proxy on that "
+            "port instead:\n"
+            f"  [bold yellow]{program_command()} {host} -l {proxy_port}"
+            "[/bold yellow]"
+        )
+
+    alt_port = find_free_local_port(port + 1) or port + 1
+    return (
+        "Start this proxy on another local port:\n"
+        f"  [bold yellow]{program_command()} {host} -l {alt_port}"
+        "[/bold yellow]\n"
+        f"and set [bold]Port {alt_port}[/bold] in the matching "
+        f"[bold]{host}-proxy[/bold] entry in ~/.ssh/config."
+    )
+
+
+def print_local_port_error(host: str, port: int, exc: OSError) -> None:
+    """port 無法綁定時，顯示原因與對應作業系統的處理指令。"""
+
+    if not is_port_in_use_error(exc):
+        CONSOLE.print(Panel(
+            f"[bold red]Cannot use local port {port}[/bold red]: {exc}\n"
+            "No connection was made to the remote host, so no password or "
+            "OTP was sent.\n\n"
+            + (
+                "On Windows this can happen when the port is reserved by "
+                "Hyper-V/WSL. List reserved ranges with:\n"
+                "  [bold yellow]netsh interface ipv4 show excludedportrange "
+                "protocol=tcp[/bold yellow]\n\n"
+                if os.name == 'nt' else ''
+            )
+            + alternative_port_hint(host, port),
+            title="Local Port Unavailable",
+            border_style="red",
+        ))
+        return
+
+    find_cmds, stop_cmds = port_owner_commands(port)
+
+    def block(lines):
+        return '\n'.join(
+            f'  [dim]{line}[/dim]' if line.startswith('#')
+            else f'  [bold yellow]{line}[/bold yellow]'
+            for line in lines
+        )
+
+    CONSOLE.print(Panel(
+        f"[bold red]Local port {port} is already in use.[/bold red]\n"
+        "No connection was made to the remote host, so no password or OTP "
+        "was sent.\n\n"
+        "[bold]Most common cause:[/bold] another ssh-proxy is still running "
+        "in a different terminal window. Switch to it and press Ctrl+C.\n"
+        "Each remote host needs its own local port, for example "
+        "nano4 -l 2222, nano5 -l 2223, t3-c4 -l 2224.\n\n"
+        "[bold]1. Find the process using the port[/bold] "
+        "(note its PID):\n"
+        f"{block(find_cmds)}\n\n"
+        "[bold]2. Stop it[/bold] (replace <PID>; make sure it is a program "
+        "you no longer need):\n"
+        f"{block(stop_cmds)}\n\n"
+        f"[bold]Or:[/bold] {alternative_port_hint(host, port)}",
+        title="Local Port In Use",
+        border_style="red",
+    ))
+
+
 async def start_proxy(host: str, remote_port: int | None, local_port: int,
                       known_hosts_path: Path, max_lifetime: int,
-                      idle_timeout: int):
+                      idle_timeout: int) -> int:
     remote_host, remote_user, config_port = parse_ssh_config(host)
     # 命令列 -p 優先，否則使用 ssh config 的 Port（預設 22）。
     if remote_port is None:
         remote_port = config_port
+
+    # 先確認本地 port 可用，再要求使用者輸入密碼 / OTP。
+    try:
+        local_sock = reserve_local_port(local_port)
+    except OSError as e:
+        print_local_port_error(host, local_port, e)
+        return 1
+
+    try:
+        return await run_proxy(
+            host, remote_host, remote_port, remote_user, local_sock,
+            local_port, known_hosts_path, max_lifetime, idle_timeout,
+        )
+    finally:
+        # create_server 接手後由 server.close() 關閉；此處確保其他路徑也釋放。
+        local_sock.close()
+
+
+async def run_proxy(host: str, remote_host: str, remote_port: int,
+                    remote_user: str, local_sock: socket.socket,
+                    local_port: int, known_hosts_path: Path,
+                    max_lifetime: int, idle_timeout: int) -> int:
 
     CONSOLE.print(Panel(
         f"Connecting to [bold cyan]{remote_user}@{remote_host}:{remote_port}[/bold cyan]...\n"
@@ -605,10 +794,10 @@ async def start_proxy(host: str, remote_port: int | None, local_port: int,
         CONSOLE.print(
             f"[bold red][ERROR] Host Key Verification Failed[/bold red]\n{e}"
         )
-        return
+        return 1
     except Exception as e:
         CONSOLE.print(f"[bold red][ERROR] Connection Error: {e}[/bold red]")
-        return
+        return 1
 
     CONSOLE.print(
         "[bold green][OK] Successfully connected to remote host![/bold green]"
@@ -622,13 +811,22 @@ async def start_proxy(host: str, remote_port: int | None, local_port: int,
     async def session_handler(process: asyncssh.SSHServerProcess):
         await handle_session(remote_conn, process)
 
-    server = await asyncssh.create_server(
-        lambda: NoAuthServer(remote_conn, activity),
-        '127.0.0.1', local_port,
-        server_host_keys=[server_key],
-        process_factory=session_handler,
-        encoding=None,
-    )
+    try:
+        server = await asyncssh.create_server(
+            lambda: NoAuthServer(remote_conn, activity),
+            sock=local_sock,
+            server_host_keys=[server_key],
+            process_factory=session_handler,
+            encoding=None,
+        )
+    except OSError as e:
+        CONSOLE.print(
+            f"[bold red][ERROR] Cannot start local proxy on "
+            f"127.0.0.1:{local_port}: {e}[/bold red]"
+        )
+        remote_conn.close()
+        await remote_conn.wait_closed()
+        return 1
 
     txt = Text()
     txt.append("[OK] Local proxy is running!\n\n", style="bold green")
@@ -668,6 +866,8 @@ async def start_proxy(host: str, remote_port: int | None, local_port: int,
         await remote_conn.wait_closed()
         CONSOLE.print("[yellow]Proxy stopped.[/yellow]")
 
+    return 0
+
 
 def main():
     import argparse
@@ -706,7 +906,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        asyncio.run(start_proxy(
+        exit_code = asyncio.run(start_proxy(
             args.host,
             args.port,
             args.local_port,
@@ -715,7 +915,8 @@ def main():
             args.idle_timeout,
         ))
     except KeyboardInterrupt:
-        pass
+        exit_code = 0
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

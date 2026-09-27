@@ -235,6 +235,23 @@ Check these points:
 2. `nano4-proxy` uses `Port 2222`.
 3. The proxy was started with the default port `2222`, or with `-l 2222`.
 
+### `Local port 2222 is already in use`
+
+Another program is already using port `2222`, usually another proxy window that is still open. The proxy checked this first, so your password and OTP were **not** sent.
+
+1. Look for another PowerShell window running the proxy and press `Ctrl+C` there.
+2. If you cannot find it, look up the program using the port and stop it:
+
+```powershell
+# Shows the program name and its Id (PID)
+Get-Process -Id (Get-NetTCPConnection -LocalPort 2222 -State Listen).OwningProcess
+
+# Replace <PID> with the Id shown above
+Stop-Process -Id <PID>
+```
+
+3. Start the proxy again. To connect to more than one host at the same time, give each host its own port (for example `t3-c4 -l 2224`) and use the same `Port` in its `*-proxy` entry in `~/.ssh/config`.
+
 ### PowerShell test shows `bash: $'\r': command not found`
 
 This is caused by Windows CRLF line endings in PowerShell pipelines. Use the tutorial's `cmd /c type` command when testing `bash -s`.

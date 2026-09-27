@@ -105,6 +105,7 @@ uv run ssh-proxy nano4
 uv run ssh_proxy.py nano4
 ```
 - By default, it creates a local proxy server on `127.0.0.1:2222`.
+- If that port is already in use (for example, another proxy is still running), it stops **before** asking for your password or OTP and shows how to fix it. See [Q6](#q6-local-port-2222-is-already-in-use).
 - **On First Connection**: OpenSSH host key fingerprints will be displayed. Type `yes` to confirm and save the host key.
 - Enter your Password and OTP / 2FA code when prompted.
 - Once authenticated, **keep this PowerShell window open**.
@@ -247,7 +248,7 @@ When connecting to multiple remote hosts concurrently, assign each machine a uni
 | **nano5** | `uv run ssh_proxy.py nano5 -l 2223` *(or `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)* | `2223` | `ssh nano5-proxy` |
 | **t3-c4** | `uv run ssh_proxy.py t3-c4 -l 2224` *(or `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)* | `2224` | `ssh t3-c4-proxy` |
 
-> 💡 **Note**: `ssh-proxy` defaults to port `2222`. Starting a second proxy without `-l <port>` will fail due to port conflict (`Address already in use`), or redirect traffic to the last started instance. Always specify distinct local ports.
+> 💡 **Note**: `ssh-proxy` defaults to port `2222`. Starting a second proxy without `-l <port>` stops with `Local port 2222 is already in use` before asking for your password or OTP, and suggests the port configured for that host's `*-proxy` alias. Always specify distinct local ports.
 
 ### How to Use After Setup
 1. **Standard Terminal Connection**:
@@ -401,6 +402,22 @@ If you start the EXE by double-clicking it, its window closes when the process e
 ```powershell
 .\ssh-proxy-windows-x64.exe nano4 --idle-timeout 2h --max-lifetime 12h
 ```
+
+### Q6: `Local port 2222 is already in use`
+- **Cause**: Another program is already using the local port, most often another `ssh-proxy` in a different window (for example, starting `t3-c4` without `-l 2224` while `nano4` uses `2222`).
+- **Good to know**: The proxy checks the port first, so no password or OTP was sent.
+- **Fix 1**: Switch to the other proxy window and press `Ctrl+C`, or start this proxy on its own port, e.g. `uv run ssh_proxy.py t3-c4 -l 2224`.
+- **Fix 2**: Find and stop the program using the port (replace `<PID>`; make sure it is a program you no longer need):
+
+  | Platform | Find the process (note its PID) | Stop it |
+  |---|---|---|
+  | Windows (PowerShell) | `Get-Process -Id (Get-NetTCPConnection -LocalPort 2222 -State Listen).OwningProcess` | `Stop-Process -Id <PID>` |
+  | Windows (cmd) | `netstat -ano \| findstr :2222` | `taskkill /PID <PID> /F` |
+  | macOS | `lsof -nP -iTCP:2222 -sTCP:LISTEN` | `kill <PID>` (or `kill -9 <PID>`) |
+  | Linux | `ss -ltnp 'sport = :2222'` | `kill <PID>` (or `kill -9 <PID>`) |
+
+- **Windows `WinError 10013` (Local Port Unavailable)**: The port may be reserved by Hyper-V/WSL. Check with `netsh interface ipv4 show excludedportrange protocol=tcp` and pick a port outside those ranges with `-l`.
+- If you change the local port, set the same `Port` in the matching `*-proxy` entry in `~/.ssh/config`.
 
 ---
 

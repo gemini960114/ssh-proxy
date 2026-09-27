@@ -41,12 +41,13 @@ Your SSH client (terminal / Antigravity / VS Code)
     nano4.nchc.org.tw:22
 ```
 
-1. `ssh_proxy.py` connects to the remote host using keyboard-interactive auth for OTP/2FA.
-2. Before any password or OTP is sent, the remote SSH host key is verified against `~/.ssh/known_hosts`.
-3. After authentication succeeds, it starts a local SSH server on `127.0.0.1:2222` or the port you choose with `-l`.
-4. Local SSH sessions are bridged through the authenticated remote connection.
-5. Shell/exec stdin, stdout, stderr, and TCP forwarding (`-L`, `-D`, `ProxyJump`) are tunneled through the remote connection. TCP forwarding is required by Antigravity and VS Code Remote-SSH.
-6. The authenticated remote SSH connection sends a keepalive every 30 seconds and stops after 3 unanswered keepalives.
+1. Before contacting the remote host, `ssh_proxy.py` reserves the local port (`127.0.0.1:2222`, or the port you choose with `-l`). If the port is already in use, it stops immediately and shows how to find and stop the program using it; no password or OTP is requested. See [Local port is already in use](#local-port-2222-is-already-in-use).
+2. It connects to the remote host using keyboard-interactive auth for OTP/2FA.
+3. Before any password or OTP is sent, the remote SSH host key is verified against `~/.ssh/known_hosts`.
+4. After authentication succeeds, it starts the local SSH server on the reserved port.
+5. Local SSH sessions are bridged through the authenticated remote connection, including terminal window resizes.
+6. Shell/exec stdin, stdout, stderr, and TCP forwarding (`-L`, `-D`, `ProxyJump`) are tunneled through the remote connection. TCP forwarding is required by Antigravity and VS Code Remote-SSH.
+7. The authenticated remote SSH connection sends a keepalive every 30 seconds and stops after 3 unanswered keepalives.
 
 ## Security Model
 
@@ -69,6 +70,8 @@ uv run ssh-proxy nano4 --known-hosts "$env:USERPROFILE\.ssh\nchc_known_hosts"
 ### Local proxy
 
 The local SSH server intentionally requires no password or OTP and listens only on IPv4 loopback (`127.0.0.1`). This mode is intended for a trusted, single-user computer. Other programs running on the same computer can use the authenticated proxy while it is running.
+
+The local port is reserved before the OTP login and held until the proxy exits, so another program cannot take over the port while you are authenticating. Local SSH clients that connect during the OTP login wait until the proxy is ready.
 
 Two application-level safety timers are enabled by default:
 
@@ -271,7 +274,7 @@ If you need to connect to multiple remote servers concurrently, run a separate p
 | `nano5` | `uv run ssh_proxy.py nano5 -l 2223` *(or `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)* | `2223` | `ssh nano5-proxy` |
 | `t3-c4` | `uv run ssh_proxy.py t3-c4 -l 2224` *(or `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)* | `2224` | `ssh t3-c4-proxy` |
 
-> **Important**: `ssh-proxy` defaults to local port `2222`. If you run `ssh-proxy t3-c4` without `-l 2224`, it will bind to port `2222`. Attempting to run a second proxy without changing the port will fail with `Address already in use` (or traffic to `127.0.0.1:2222` will be forwarded to the last-started host). Always use `-l <port>` when running multiple proxies simultaneously.
+> **Important**: `ssh-proxy` defaults to local port `2222`. If you run `ssh-proxy t3-c4` without `-l 2224`, it tries to use port `2222`. When another proxy is already using that port, the new proxy stops with `Local port 2222 is already in use` **before** asking for your password or OTP, and suggests the port configured for `t3-c4-proxy` in `~/.ssh/config`. Always use `-l <port>` when running multiple proxies simultaneously.
 
 For Antigravity or VS Code Remote-SSH, choose the proxy host (such as `nano4-proxy` or `t3-c4-proxy`), not the direct host.
 
@@ -309,6 +312,29 @@ Works with SSH servers that use keyboard-interactive / OTP authentication, inclu
 - Other MFA-protected SSH servers
 
 ## Troubleshooting
+
+### `Local port 2222 is already in use`
+
+The proxy checks the local port before connecting to the remote host, so no password or OTP was sent. The most common cause is another `ssh-proxy` still running in a different terminal window: switch to it and press `Ctrl+C`, or start this proxy on the port assigned to it (for example `t3-c4 -l 2224`, see [Multi-Host Setup](#multi-host-setup--simultaneous-proxying)).
+
+To find and stop the program using the port (replace `2222` and `<PID>`; make sure it is a program you no longer need):
+
+| Platform | Find the process (note its PID) | Stop it |
+|---|---|---|
+| Windows (PowerShell) | `Get-Process -Id (Get-NetTCPConnection -LocalPort 2222 -State Listen).OwningProcess` | `Stop-Process -Id <PID>` |
+| Windows (cmd) | `netstat -ano \| findstr :2222` | `taskkill /PID <PID> /F` |
+| macOS | `lsof -nP -iTCP:2222 -sTCP:LISTEN` | `kill <PID>` (if it does not exit: `kill -9 <PID>`) |
+| Linux | `ss -ltnp 'sport = :2222'` or `lsof -nP -iTCP:2222 -sTCP:LISTEN` | `kill <PID>` (if it does not exit: `kill -9 <PID>`) |
+
+The proxy prints these commands for your platform with the actual port number. If you choose a different local port with `-l`, set the same `Port` in the matching `*-proxy` entry in `~/.ssh/config`.
+
+### `Local Port Unavailable` on Windows
+
+If the error is a permission error (`WinError 10013`) instead of "already in use", Windows may have reserved the port for Hyper-V or WSL. List the reserved ranges and choose a port outside them with `-l`:
+
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
 
 ### `bash: $'\r': command not found` in PowerShell tests
 

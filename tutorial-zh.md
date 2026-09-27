@@ -105,6 +105,7 @@ uv run ssh-proxy nano4
 uv run ssh_proxy.py nano4
 ```
 - 預設會在本機建立 `127.0.0.1:2222` 的 Proxy。
+- 若該 Port 已被占用（例如另一個 Proxy 還開著），程式會在**要求輸入密碼 / OTP 之前**就停止，並顯示處理方式，詳見 [Q6](#q6-出現-local-port-2222-is-already-in-use)。
 - **第一次連線**：會顯示遠端 SSH Host Key 指紋，請輸入完整的 `yes` 確認。
 - 接著依照提示輸入密碼與 OTP 驗證碼。
 - 驗證成功後，**請保持此 PowerShell 視窗開啟**（不要關閉）。
@@ -247,7 +248,7 @@ Host t3-c4-proxy
 | **nano5** | `uv run ssh_proxy.py nano5 -l 2223` *(或 `.\ssh-proxy-windows-x64.exe nano5 -l 2223`)* | `2223` | `ssh nano5-proxy` |
 | **t3-c4** | `uv run ssh_proxy.py t3-c4 -l 2224` *(或 `.\ssh-proxy-windows-x64.exe t3-c4 -l 2224`)* | `2224` | `ssh t3-c4-proxy` |
 
-> 💡 **注意事項**：`ssh-proxy` 預設監聽在 Port `2222`。若未加上 `-l 2224` 啟動第二台機器，會因為 Port 2222 已被占用而報錯，或導致連線全部轉發到同一台。請務必指定不同 Port。
+> 💡 **注意事項**：`ssh-proxy` 預設監聽在 Port `2222`。若未加上 `-l 2224` 啟動第二台機器，程式會在要求輸入密碼 / OTP 之前就以 `Local port 2222 is already in use` 停止，並提示 `~/.ssh/config` 中該主機 `*-proxy` 別名所設定的 Port。請務必替每台機器指定不同 Port。
 
 ### 設定後的使用方式
 1. **一般終端機連線**：
@@ -401,6 +402,22 @@ uv run ssh-proxy nano4 --idle-timeout 2h --max-lifetime 12h
 ```powershell
 .\ssh-proxy-windows-x64.exe nano4 --idle-timeout 2h --max-lifetime 12h
 ```
+
+### Q6: 出現 `Local port 2222 is already in use`
+- **原因**：本機 Port 已被其他程式占用，最常見的是另一個視窗中的 `ssh-proxy` 還在執行（例如 `nano4` 已使用 `2222`，又在沒加 `-l 2224` 的情況下啟動 `t3-c4`）。
+- **不用擔心**：程式會先檢查 Port，因此這時尚未送出任何密碼或 OTP。
+- **解法 1**：切換到另一個 Proxy 視窗按 `Ctrl+C` 結束它，或改用該主機專屬的 Port 啟動，例如 `uv run ssh_proxy.py t3-c4 -l 2224`。
+- **解法 2**：找出並結束占用 Port 的程式（將 `<PID>` 換成查到的數字；請先確認是不再需要的程式）：
+
+  | 平台 | 查詢占用程式（記下 PID） | 結束程式 |
+  |---|---|---|
+  | Windows (PowerShell) | `Get-Process -Id (Get-NetTCPConnection -LocalPort 2222 -State Listen).OwningProcess` | `Stop-Process -Id <PID>` |
+  | Windows (cmd) | `netstat -ano \| findstr :2222` | `taskkill /PID <PID> /F` |
+  | macOS | `lsof -nP -iTCP:2222 -sTCP:LISTEN` | `kill <PID>`（無效時用 `kill -9 <PID>`） |
+  | Linux | `ss -ltnp 'sport = :2222'` | `kill <PID>`（無效時用 `kill -9 <PID>`） |
+
+- **Windows 出現 `WinError 10013`（Local Port Unavailable）**：該 Port 可能被 Hyper-V / WSL 保留。可用 `netsh interface ipv4 show excludedportrange protocol=tcp` 查看保留範圍，再用 `-l` 選擇範圍外的 Port。
+- 若改用其他本地 Port，請同步修改 `~/.ssh/config` 中對應 `*-proxy` 項目的 `Port`。
 
 ---
 

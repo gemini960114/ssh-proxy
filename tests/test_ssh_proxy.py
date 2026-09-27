@@ -1,5 +1,6 @@
 import asyncio
 import os
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -273,6 +274,83 @@ class PtySessionBridgeTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(process.wait(), 5)
 
         self.assertNotIn(('EOF',), self.events)
+
+
+class LocalPortTests(unittest.IsolatedAsyncioTestCase):
+    async def test_port_in_use_fails_before_remote_login(self):
+        occupied = socket.socket()
+        occupied.bind(('127.0.0.1', 0))
+        occupied.listen()
+        port = occupied.getsockname()[1]
+        try:
+            with patch(
+                'ssh_proxy.connect_remote',
+                side_effect=AssertionError('must not log in when port busy'),
+            ), patch('ssh_proxy.parse_ssh_config',
+                     return_value=('example.test', 'me', 22)), \
+                    patch('ssh_proxy.configured_proxy_port',
+                          return_value=None), \
+                    patch('ssh_proxy.find_free_local_port',
+                          return_value=port + 1), \
+                    patch.object(ssh_proxy.CONSOLE, 'print') as printed:
+                exit_code = await ssh_proxy.start_proxy(
+                    't3-c4', None, port, Path('unused'), 0, 0,
+                )
+        finally:
+            occupied.close()
+
+        self.assertEqual(exit_code, 1)
+        message = printed.call_args.args[0].renderable
+        self.assertIn(f'Local port {port} is already in use', message)
+        self.assertIn('no password or OTP was sent', message)
+        self.assertIn(f't3-c4 -l {port + 1}', message)
+
+    def test_hint_uses_port_from_proxy_alias_in_ssh_config(self):
+        output = 'hostname 127.0.0.1\nuser me\nport 2224\n'
+        completed = subprocess.CompletedProcess([], 0, stdout=output)
+        with patch('ssh_proxy.subprocess.run', return_value=completed) as run:
+            hint = ssh_proxy.alternative_port_hint('t3-c4', 2222)
+        self.assertEqual(run.call_args.args[0][-1], 't3-c4-proxy')
+        self.assertIn('Port 2224', hint)
+        self.assertIn('t3-c4 -l 2224', hint)
+
+    async def test_reserved_port_blocks_others_then_serves_ssh(self):
+        sock = ssh_proxy.reserve_local_port(0)
+        port = sock.getsockname()[1]
+
+        # 保留期間（OTP 登入中）：其他程式不能綁定同一 port。
+        with self.assertRaises(OSError) as ctx:
+            ssh_proxy.reserve_local_port(port)
+        self.assertTrue(ssh_proxy.is_port_in_use_error(ctx.exception))
+
+        server = await asyncssh.create_server(
+            AcceptAllServer, sock=sock,
+            server_host_keys=[asyncssh.generate_private_key('ssh-ed25519')],
+        )
+        try:
+            async with asyncssh.connect(
+                '127.0.0.1', port, known_hosts=None, username='test-user',
+            ):
+                pass
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    def test_port_owner_commands_cover_each_platform(self):
+        cases = [
+            ('nt', 'win32', 'Get-NetTCPConnection -LocalPort 2222',
+             'taskkill /PID <PID> /F'),
+            ('posix', 'darwin', 'lsof -nP -iTCP:2222 -sTCP:LISTEN',
+             'kill <PID>'),
+            ('posix', 'linux', "ss -ltnp 'sport = :2222'", 'kill <PID>'),
+        ]
+        for os_name, platform, find_cmd, stop_cmd in cases:
+            with self.subTest(platform=platform), \
+                    patch.object(ssh_proxy.os, 'name', os_name), \
+                    patch.object(ssh_proxy.sys, 'platform', platform):
+                find_cmds, stop_cmds = ssh_proxy.port_owner_commands(2222)
+                self.assertTrue(any(find_cmd in c for c in find_cmds))
+                self.assertIn(stop_cmd, stop_cmds)
 
 
 class SshConfigTests(unittest.TestCase):
