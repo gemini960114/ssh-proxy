@@ -5,6 +5,7 @@ SSH OTP Proxy
 import asyncio
 import getpass
 import os
+import subprocess
 import sys
 import time
 import traceback
@@ -272,11 +273,33 @@ class NoAuthServer(asyncssh.SSHServer):
 # ──────────────────────────────────────────────────
 # Step 3: 每個 session 的處理函式
 # ──────────────────────────────────────────────────
-async def copy_stream(src, dst, label="", write_eof=True):
+def forward_channel_event(remote_proc: asyncssh.SSHClientProcess,
+                          exc: Exception) -> None:
+    """把本地 client 的視窗大小變更、break、signal 轉送到遠端 process。"""
+    if isinstance(exc, asyncssh.TerminalSizeChanged):
+        remote_proc.change_terminal_size(
+            exc.width, exc.height, exc.pixwidth, exc.pixheight
+        )
+    elif isinstance(exc, asyncssh.BreakReceived):
+        remote_proc.send_break(exc.msec)
+    elif isinstance(exc, asyncssh.SignalReceived):
+        remote_proc.send_signal(exc.signal)
+
+
+async def copy_stream(src, dst, label="", write_eof=True, on_event=None):
     """把 src 的資料逐筆複製到 dst"""
     try:
         while True:
-            data = await src.read(65536)
+            try:
+                data = await src.read(65536)
+            except (asyncssh.TerminalSizeChanged, asyncssh.BreakReceived,
+                    asyncssh.SignalReceived) as exc:
+                # 這些是 channel 事件而非資料結束；轉送後繼續讀取，
+                # 否則第一次調整終端視窗大小就會中斷 stdin。
+                if on_event is None:
+                    raise
+                on_event(exc)
+                continue
             if not data:
                 break
             dst.write(data)
@@ -331,7 +354,10 @@ async def handle_session(remote_conn: asyncssh.SSHClientConnection,
 
         async with remote_conn.create_process(encoding=None, **kwargs) as remote_proc:
             stdin_task = asyncio.create_task(
-                copy_stream(process.stdin, remote_proc.stdin, "local->remote stdin")
+                copy_stream(
+                    process.stdin, remote_proc.stdin, "local->remote stdin",
+                    on_event=lambda exc: forward_channel_event(remote_proc, exc),
+                )
             )
             stdout_task = asyncio.create_task(
                 copy_stream(
@@ -372,14 +398,61 @@ async def handle_session(remote_conn: asyncssh.SSHClientConnection,
 # ──────────────────────────────────────────────────
 # Step 4: 解析 ~/.ssh/config
 # ──────────────────────────────────────────────────
-def parse_ssh_config(alias: str) -> tuple[str, str]:
-    """從 ~/.ssh/config 取得 HostName 與 User"""
-    hostname = alias
-    user = getpass.getuser()
+def resolve_with_openssh(alias: str) -> tuple[str, str, int] | None:
+    """用 `ssh -G` 取得 OpenSSH 實際採用的 HostName、User、Port。
+
+    由 OpenSSH 自己解析 Match、Include、萬用字元與「第一個值優先」規則，
+    結果與直接執行 `ssh <alias>` 一致。找不到 ssh 或執行失敗時回傳 None。
+    """
+    try:
+        result = subprocess.run(
+            ['ssh', '-G', '--', alias],
+            capture_output=True,
+            # 明確指定編碼：否則會以 locale（如 cp950）嚴格解碼，
+            # 非 ASCII 的使用者名稱或路徑會拋出未被攔截的 UnicodeDecodeError。
+            encoding='utf-8',
+            errors='replace',
+            stdin=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    values = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            values.setdefault(parts[0].lower(), parts[1].strip())
+
+    try:
+        return values['hostname'], values['user'], int(values['port'])
+    except (KeyError, ValueError):
+        return None
+
+
+def parse_ssh_config(alias: str) -> tuple[str, str, int]:
+    """取得 alias 對應的 HostName、User、Port，優先使用 OpenSSH 的解析結果。"""
+    resolved = resolve_with_openssh(alias)
+    if resolved is not None:
+        return resolved
+    return parse_ssh_config_file(alias)
+
+
+def parse_ssh_config_file(alias: str) -> tuple[str, str, int]:
+    """沒有 ssh 指令時的備援：簡易解析 ~/.ssh/config 的 HostName、User、Port。
+
+    不支援 Match、Include 與萬用字元；同一設定以第一個值為準（同 OpenSSH）。
+    """
+    hostname = None
+    user = None
+    port = None
 
     config_path = os.path.expanduser("~/.ssh/config")
     if not os.path.exists(config_path):
-        return hostname, user
+        return alias, getpass.getuser(), 22
 
     try:
         with open(config_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -388,22 +461,34 @@ def parse_ssh_config(alias: str) -> tuple[str, str]:
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
-                if line.lower().startswith('host '):
-                    tokens = line.split()
-                    in_block = alias in tokens[1:]
-                elif in_block:
-                    parts = line.split(None, 1)
-                    if len(parts) == 2:
-                        k = parts[0].lower()
-                        v = parts[1].strip().strip('"\'')
-                        if k == 'hostname':
-                            hostname = v
-                        elif k == 'user':
-                            user = v
-    except Exception:
-        pass
+                parts = line.replace('=', ' ', 1).split(None, 1)
+                keyword = parts[0].lower()
+                if keyword == 'host':
+                    in_block = len(parts) == 2 and alias in parts[1].split()
+                elif keyword == 'match':
+                    # Match 條件無法在此簡易解析，其區塊一律不套用。
+                    in_block = False
+                elif in_block and len(parts) == 2:
+                    v = parts[1].strip().strip('"\'')
+                    if keyword == 'hostname' and hostname is None:
+                        hostname = v
+                    elif keyword == 'user' and user is None:
+                        user = v
+                    elif keyword == 'port' and port is None:
+                        try:
+                            port = int(v)
+                        except ValueError:
+                            pass
+    except OSError as e:
+        CONSOLE.print(
+            f"[yellow][WARN] Cannot read {config_path}: {e}[/yellow]"
+        )
 
-    return hostname, user
+    return (
+        hostname or alias,
+        user or getpass.getuser(),
+        port or 22,
+    )
 
 
 # ──────────────────────────────────────────────────
@@ -493,10 +578,13 @@ def format_duration(seconds: int) -> str:
     return f'{seconds}s'
 
 
-async def start_proxy(host: str, remote_port: int, local_port: int,
+async def start_proxy(host: str, remote_port: int | None, local_port: int,
                       known_hosts_path: Path, max_lifetime: int,
                       idle_timeout: int):
-    remote_host, remote_user = parse_ssh_config(host)
+    remote_host, remote_user, config_port = parse_ssh_config(host)
+    # 命令列 -p 優先，否則使用 ssh config 的 Port（預設 22）。
+    if remote_port is None:
+        remote_port = config_port
 
     CONSOLE.print(Panel(
         f"Connecting to [bold cyan]{remote_user}@{remote_host}:{remote_port}[/bold cyan]...\n"
@@ -587,8 +675,9 @@ def main():
     parser = argparse.ArgumentParser(description="SSH OTP Local Proxy")
     parser.add_argument("host", nargs="?", default="nano4",
                         help="SSH Host alias or hostname")
-    parser.add_argument("-p", "--port", type=int, default=22,
-                        help="Remote SSH port (default: 22)")
+    parser.add_argument("-p", "--port", type=int, default=None,
+                        help="Remote SSH port (default: Port from "
+                             "~/.ssh/config, otherwise 22)")
     parser.add_argument("-l", "--local-port", type=int, default=2222,
                         help="Local proxy port (default: 2222)")
     parser.add_argument(

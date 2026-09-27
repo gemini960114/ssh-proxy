@@ -164,7 +164,8 @@ positional arguments:
   host              SSH host alias or hostname (default: nano4)
 
 options:
-  -p, --port        Remote SSH port (default: 22)
+  -p, --port        Remote SSH port (default: Port from ~/.ssh/config,
+                    otherwise 22)
   -l, --local-port  Local proxy port (default: 2222)
   --known-hosts     Remote host key database (default: ~/.ssh/known_hosts)
   --max-lifetime    Stop after this time, e.g. 8h; 0 disables (default: 8h)
