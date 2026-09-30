@@ -198,8 +198,10 @@ Copy the relevant sections from [ssh_config.example](ssh_config.example) into `~
 Start with the real remote host. Replace `YOUR_USERNAME` with your NCHC username:
 
 ```sshconfig
+# nano4.nchc.org.tw may route to a different login node each time; 140.110.109.162 always reaches 25a-lgn02
 Host nano4
-  HostName nano4.nchc.org.tw
+  #HostName nano4.nchc.org.tw
+  HostName 140.110.109.162
   User YOUR_USERNAME
 
   # Go directly to the OTP / MFA authentication flow

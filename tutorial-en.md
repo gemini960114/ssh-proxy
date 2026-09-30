@@ -194,8 +194,10 @@ Edit the `config` file and paste the following, replacing `YOUR_USERNAME` with y
 
 ```sshconfig
 # 1. Original Remote Host (used by ssh-proxy to read target connection settings)
+# nano4.nchc.org.tw may route to a different login node each time; 140.110.109.162 always reaches 25a-lgn02
 Host nano4
-  HostName nano4.nchc.org.tw
+  #HostName nano4.nchc.org.tw
+  HostName 140.110.109.162
   User YOUR_USERNAME
   PubkeyAuthentication no
   KbdInteractiveAuthentication yes

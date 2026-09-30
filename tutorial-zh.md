@@ -194,8 +194,10 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 127.0.0.
 
 ```sshconfig
 # 1. 原始遠端主機（給 ssh-proxy 讀取主機資訊使用）
+# nano4.nchc.org.tw 每次會分派到不同的登入節點；140.110.109.162 固定連到 25a-lgn02
 Host nano4
-  HostName nano4.nchc.org.tw
+  #HostName nano4.nchc.org.tw
+  HostName 140.110.109.162
   User YOUR_USERNAME
   PubkeyAuthentication no
   KbdInteractiveAuthentication yes

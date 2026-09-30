@@ -93,8 +93,10 @@ notepad $env:USERPROFILE\.ssh\config
 Paste the following config and replace `YOUR_USERNAME` with your own computing-host username.
 
 ```sshconfig
+# nano4.nchc.org.tw may route to a different login node each time; 140.110.109.162 always reaches 25a-lgn02
 Host nano4
-  HostName nano4.nchc.org.tw
+  #HostName nano4.nchc.org.tw
+  HostName 140.110.109.162
   User YOUR_USERNAME
   PubkeyAuthentication no
   KbdInteractiveAuthentication yes
